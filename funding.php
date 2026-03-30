@@ -13,7 +13,8 @@ $calendar = [];
 
 $view_month = $_GET['month'] ?? date('Y-m');
 $selected_date = $_GET['calendar_date'] ?? date('Y-m-d');
-$active_tab = in_array($_GET['tab'] ?? 'funding-tab', ['funding-tab', 'calendar-tab', 'monthly-pnl-tab', 'performance-metrics-tab'], true) ? $_GET['tab'] : 'funding-tab';
+$requested_tab = $_GET['tab'] ?? 'funding-tab';
+$active_tab = in_array($requested_tab, ['funding-tab', 'calendar-tab', 'monthly-pnl-tab', 'performance-metrics-tab'], true) ? $requested_tab : 'funding-tab';
 
 
 function float_or_null($value) {
