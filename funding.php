@@ -382,6 +382,7 @@ if (!empty($calendar_dates)) {
         .winrate-footer {margin-top: 16px; font-weight: 800; color: #102a66; text-align: center;}
         .calendar-wrapper {margin-top: 32px;}
         .calendar-header {display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;}
+        .calendar-month-label {font-size: 1.05rem; font-weight: 800; color: #17337a; margin-top: 4px;}
         .calendar-grid {width: 100%; border-collapse: separate; border-spacing: 8px; min-width: 760px;}
         .calendar-grid th, .calendar-grid td {width: 14.285%; border: 2px solid #d1d5db; vertical-align: top; padding: 10px; height: 120px; border-radius: 16px; transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;}
         .calendar-grid td.day-outside {background: #f9fafb; color: #9ca3af;}
@@ -484,7 +485,10 @@ if (!empty($calendar_dates)) {
     <div id="calendar-tab" class="tab-content <?php echo $active_tab === 'calendar-tab' ? 'active' : ''; ?>">
         <div class="calendar-wrapper">
             <div class="calendar-header">
-                <h2>Monthly Profit/Loss Calendar</h2>
+                <div>
+                    <h2>Monthly Profit/Loss Calendar</h2>
+                    <div class="calendar-month-label"><?php echo date('F Y', strtotime($view_month . '-01')); ?></div>
+                </div>
                 <div>
                     <?php
                     $prev_month = date('Y-m', strtotime($view_month . ' -1 month'));
