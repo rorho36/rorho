@@ -1,5 +1,8 @@
 <?php
 require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/auth.php';
+
+auth_require_login();
 
 $pdo = app_require_db();
 $default_state = [
@@ -218,6 +221,7 @@ $active_nav = 'dashboard';
                 <a class="sidebar-link" href="funding.php?tab=calendar-tab">Monthly PnL</a>
                 <a class="sidebar-link" href="funding.php?tab=performance-metrics-tab">Performance Metrics</a>
                 <a class="sidebar-link" href="weekly_journal.php">Weekly Journal</a>
+                <a class="sidebar-link" href="logout.php">Logout</a>
             </nav>
         </aside>
         <main class="main-content">

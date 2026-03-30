@@ -1,5 +1,8 @@
 <?php
 require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/auth.php';
+
+auth_require_login();
 
 $pdo = app_require_db();
 $funding = [];
@@ -421,6 +424,7 @@ if (!empty($calendar_dates)) {
                 <a class="sidebar-link <?php echo $active_tab === 'monthly-pnl-tab' ? 'active' : ''; ?>" href="funding.php?tab=monthly-pnl-tab">Monthly PnL</a>
                 <a class="sidebar-link <?php echo $active_tab === 'performance-metrics-tab' ? 'active' : ''; ?>" href="funding.php?tab=performance-metrics-tab">Performance Metrics</a>
                 <a class="sidebar-link" href="weekly_journal.php">Weekly Journal</a>
+                <a class="sidebar-link" href="logout.php">Logout</a>
             </nav>
         </aside>
         <main class="main-content">
