@@ -51,3 +51,67 @@ function app_require_db() {
     exit;
 }
 
+function app_ensure_user_data_tables(PDO $pdo) {
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS dashboard_state_user (
+            user_id BIGINT PRIMARY KEY,
+            funding_goal BIGINT NOT NULL DEFAULT 0,
+            current_balance BIGINT NOT NULL DEFAULT 0,
+            total_payouts BIGINT NOT NULL DEFAULT 0,
+            total_expenses BIGINT NOT NULL DEFAULT 0,
+            outstanding_challenges INT NOT NULL DEFAULT 0,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+    ");
+
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS funding_entries_user (
+            id BIGSERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL,
+            date DATE NOT NULL,
+            amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+            firm TEXT NOT NULL DEFAULT '',
+            action TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'ongoing',
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+    ");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_funding_entries_user_user_id_date ON funding_entries_user (user_id, date DESC, id DESC)");
+
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS calendar_entries_user (
+            user_id BIGINT NOT NULL,
+            date DATE NOT NULL,
+            type TEXT NOT NULL DEFAULT 'profit',
+            rr NUMERIC(10,2),
+            percent_made NUMERIC(10,2),
+            be NUMERIC(10,2),
+            loss NUMERIC(10,2),
+            win NUMERIC(10,2),
+            reentry_win NUMERIC(10,2),
+            reentry_loss NUMERIC(10,2),
+            reentry_be NUMERIC(10,2),
+            session TEXT NOT NULL DEFAULT '',
+            outsession TEXT NOT NULL DEFAULT '',
+            journal TEXT NOT NULL DEFAULT '',
+            theory TEXT NOT NULL DEFAULT 'logical',
+            ovr TEXT NOT NULL DEFAULT 'good',
+            links TEXT NOT NULL DEFAULT '',
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            PRIMARY KEY (user_id, date)
+        )
+    ");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_calendar_entries_user_user_id_date ON calendar_entries_user (user_id, date)");
+
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS weekly_journal_entries_user (
+            user_id BIGINT NOT NULL,
+            week_start DATE NOT NULL,
+            weekly_lessons TEXT NOT NULL DEFAULT '',
+            overall_trading TEXT NOT NULL DEFAULT '',
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            PRIMARY KEY (user_id, week_start)
+        )
+    ");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_weekly_journal_entries_user_user_id_week_start ON weekly_journal_entries_user (user_id, week_start DESC)");
+}

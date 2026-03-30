@@ -5,6 +5,9 @@ require_once __DIR__ . '/auth.php';
 auth_require_login();
 
 $pdo = app_require_db();
+app_ensure_user_data_tables($pdo);
+$current_user = auth_current_user();
+$user_id = (int)($current_user['id'] ?? 0);
 $funding = [];
 $calendar = [];
 
@@ -31,14 +34,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $calendar_outsession = implode(',', array_values(array_filter(array_map('trim', explode(',', $_POST['outsession'] ?? '')))));
 
         $upsert_calendar = $pdo->prepare('
-            INSERT INTO calendar_entries (
-                date, type, rr, percent_made, be, loss, win, reentry_win, reentry_loss, reentry_be,
+            INSERT INTO calendar_entries_user (
+                user_id, date, type, rr, percent_made, be, loss, win, reentry_win, reentry_loss, reentry_be,
                 session, outsession, journal, theory, ovr, links, updated_at
             ) VALUES (
-                :date, :type, :rr, :percent_made, :be, :loss, :win, :reentry_win, :reentry_loss, :reentry_be,
+                :user_id, :date, :type, :rr, :percent_made, :be, :loss, :win, :reentry_win, :reentry_loss, :reentry_be,
                 :session, :outsession, :journal, :theory, :ovr, :links, NOW()
             )
-            ON CONFLICT (date) DO UPDATE SET
+            ON CONFLICT (user_id, date) DO UPDATE SET
                 type = EXCLUDED.type,
                 rr = EXCLUDED.rr,
                 percent_made = EXCLUDED.percent_made,
@@ -57,6 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 updated_at = NOW()
         ');
         $upsert_calendar->execute([
+            'user_id' => $user_id,
             'date' => $cdate,
             'type' => $calendar_type,
             'rr' => float_or_null($_POST['rr'] ?? ''),
@@ -80,10 +84,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $insert_funding = $pdo->prepare('
-        INSERT INTO funding_entries (date, amount, firm, action, status)
-        VALUES (:date, :amount, :firm, :action, :status)
+        INSERT INTO funding_entries_user (user_id, date, amount, firm, action, status)
+        VALUES (:user_id, :date, :amount, :firm, :action, :status)
     ');
     $insert_funding->execute([
+        'user_id' => $user_id,
         'date' => $_POST['date'] ?? date('Y-m-d'),
         'amount' => (float)($_POST['amount'] ?? 0.0),
         'firm' => trim($_POST['firm'] ?? ''),
@@ -95,11 +100,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-$funding_rows = $pdo->query('
+$funding_stmt = $pdo->prepare('
     SELECT date::text AS date, amount::float8 AS amount, firm, action, status
-    FROM funding_entries
+    FROM funding_entries_user
+    WHERE user_id = :user_id
     ORDER BY date DESC, id DESC
-')->fetchAll();
+');
+$funding_stmt->execute(['user_id' => $user_id]);
+$funding_rows = $funding_stmt->fetchAll();
 
 foreach ($funding_rows as $row) {
     $funding[] = [
@@ -111,14 +119,17 @@ foreach ($funding_rows as $row) {
     ];
 }
 
-$calendar_rows = $pdo->query('
+$calendar_stmt = $pdo->prepare('
     SELECT
         date::text AS date_key, type, rr::float8 AS rr, percent_made::float8 AS percent_made,
         be::float8 AS be, loss::float8 AS loss, win::float8 AS win,
         reentry_win::float8 AS reentry_win, reentry_loss::float8 AS reentry_loss, reentry_be::float8 AS reentry_be,
         session, outsession, journal, theory, ovr, links
-    FROM calendar_entries
-')->fetchAll();
+    FROM calendar_entries_user
+    WHERE user_id = :user_id
+');
+$calendar_stmt->execute(['user_id' => $user_id]);
+$calendar_rows = $calendar_stmt->fetchAll();
 
 foreach ($calendar_rows as $row) {
     $calendar[(string)$row['date_key']] = [

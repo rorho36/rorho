@@ -5,6 +5,9 @@ require_once __DIR__ . '/auth.php';
 auth_require_login();
 
 $pdo = app_require_db();
+app_ensure_user_data_tables($pdo);
+$current_user = auth_current_user();
+$user_id = (int)($current_user['id'] ?? 0);
 $journal_entries = [];
 
 function normalize_week_start($value) {
@@ -38,22 +41,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (isset($_POST['delete_entry'])) {
         $delete_week = normalize_week_start($_POST['week_start'] ?? '');
-        $delete_stmt = $pdo->prepare('DELETE FROM weekly_journal_entries WHERE week_start = :week_start');
-        $delete_stmt->execute(['week_start' => $delete_week]);
+        $delete_stmt = $pdo->prepare('DELETE FROM weekly_journal_entries_user WHERE user_id = :user_id AND week_start = :week_start');
+        $delete_stmt->execute(['user_id' => $user_id, 'week_start' => $delete_week]);
         header('Location: ' . $_SERVER['PHP_SELF'] . '?year=' . urlencode((string)$redirect_year));
         exit;
     }
 
     $week_start = normalize_week_start($_POST['week_start'] ?? '');
     $upsert_stmt = $pdo->prepare('
-        INSERT INTO weekly_journal_entries (week_start, weekly_lessons, overall_trading, updated_at)
-        VALUES (:week_start, :weekly_lessons, :overall_trading, NOW())
-        ON CONFLICT (week_start) DO UPDATE SET
+        INSERT INTO weekly_journal_entries_user (user_id, week_start, weekly_lessons, overall_trading, updated_at)
+        VALUES (:user_id, :week_start, :weekly_lessons, :overall_trading, NOW())
+        ON CONFLICT (user_id, week_start) DO UPDATE SET
             weekly_lessons = EXCLUDED.weekly_lessons,
             overall_trading = EXCLUDED.overall_trading,
             updated_at = NOW()
     ');
     $upsert_stmt->execute([
+        'user_id' => $user_id,
         'week_start' => $week_start,
         'weekly_lessons' => trim($_POST['weekly_lessons'] ?? ''),
         'overall_trading' => trim($_POST['overall_trading'] ?? ''),
@@ -72,11 +76,14 @@ $selected_week = normalize_week_start($_GET['week'] ?? date('Y-m-d'));
 $prev_year = $view_year - 1;
 $next_year = $view_year + 1;
 
-$journal_rows = $pdo->query('
+$journal_stmt = $pdo->prepare('
     SELECT week_start::text AS week_start, weekly_lessons, overall_trading, updated_at
-    FROM weekly_journal_entries
+    FROM weekly_journal_entries_user
+    WHERE user_id = :user_id
     ORDER BY week_start DESC
-')->fetchAll();
+');
+$journal_stmt->execute(['user_id' => $user_id]);
+$journal_rows = $journal_stmt->fetchAll();
 
 foreach ($journal_rows as $row) {
     $journal_entries[(string)$row['week_start']] = [

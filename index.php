@@ -5,6 +5,9 @@ require_once __DIR__ . '/auth.php';
 auth_require_login();
 
 $pdo = app_require_db();
+app_ensure_user_data_tables($pdo);
+$current_user = auth_current_user();
+$user_id = (int)($current_user['id'] ?? 0);
 $default_state = [
     'funding_goal' => 4000000,
     'current_balance' => 2350000,
@@ -13,14 +16,27 @@ $default_state = [
     'outstanding_challenges' => 5,
 ];
 
-$state_stmt = $pdo->query('SELECT funding_goal, current_balance, total_payouts, total_expenses, outstanding_challenges FROM dashboard_state WHERE id = 1 LIMIT 1');
+$state_stmt = $pdo->prepare('
+    SELECT funding_goal, current_balance, total_payouts, total_expenses, outstanding_challenges
+    FROM dashboard_state_user
+    WHERE user_id = :user_id
+    LIMIT 1
+');
+$state_stmt->execute(['user_id' => $user_id]);
 $state = $state_stmt->fetch();
 if (!$state) {
     $insert_default = $pdo->prepare('
-        INSERT INTO dashboard_state (id, funding_goal, current_balance, total_payouts, total_expenses, outstanding_challenges)
-        VALUES (1, :funding_goal, :current_balance, :total_payouts, :total_expenses, :outstanding_challenges)
+        INSERT INTO dashboard_state_user (user_id, funding_goal, current_balance, total_payouts, total_expenses, outstanding_challenges)
+        VALUES (:user_id, :funding_goal, :current_balance, :total_payouts, :total_expenses, :outstanding_challenges)
     ');
-    $insert_default->execute($default_state);
+    $insert_default->execute([
+        'user_id' => $user_id,
+        'funding_goal' => $default_state['funding_goal'],
+        'current_balance' => $default_state['current_balance'],
+        'total_payouts' => $default_state['total_payouts'],
+        'total_expenses' => $default_state['total_expenses'],
+        'outstanding_challenges' => $default_state['outstanding_challenges'],
+    ]);
     $state = $default_state;
 } else {
     $state = [
@@ -40,16 +56,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $state['outstanding_challenges'] = max(0, (int)($_POST['outstanding_challenges'] ?? $state['outstanding_challenges']));
 
     $upsert_state = $pdo->prepare('
-        INSERT INTO dashboard_state (id, funding_goal, current_balance, total_payouts, total_expenses, outstanding_challenges)
-        VALUES (1, :funding_goal, :current_balance, :total_payouts, :total_expenses, :outstanding_challenges)
-        ON CONFLICT (id) DO UPDATE SET
+        INSERT INTO dashboard_state_user (user_id, funding_goal, current_balance, total_payouts, total_expenses, outstanding_challenges, updated_at)
+        VALUES (:user_id, :funding_goal, :current_balance, :total_payouts, :total_expenses, :outstanding_challenges, NOW())
+        ON CONFLICT (user_id) DO UPDATE SET
             funding_goal = EXCLUDED.funding_goal,
             current_balance = EXCLUDED.current_balance,
             total_payouts = EXCLUDED.total_payouts,
             total_expenses = EXCLUDED.total_expenses,
-            outstanding_challenges = EXCLUDED.outstanding_challenges
+            outstanding_challenges = EXCLUDED.outstanding_challenges,
+            updated_at = NOW()
     ');
-    $upsert_state->execute($state);
+    $upsert_state->execute([
+        'user_id' => $user_id,
+        'funding_goal' => $state['funding_goal'],
+        'current_balance' => $state['current_balance'],
+        'total_payouts' => $state['total_payouts'],
+        'total_expenses' => $state['total_expenses'],
+        'outstanding_challenges' => $state['outstanding_challenges'],
+    ]);
 
     header('Location: ' . $_SERVER['PHP_SELF']);
     exit;
