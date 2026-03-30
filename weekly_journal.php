@@ -166,11 +166,14 @@ $selected_entry = $journal_entries[$selected_week] ?? ['weekly_lessons' => '', '
         @media (max-width: 980px) {
             .app-shell {flex-direction: column;}
             .sidebar {width: 100%; box-shadow: none;}
+            .sidebar-nav {display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));}
             .main-content {padding: 18px;}
             .container {grid-template-columns: 1fr;}
             .week-calendar-grid {grid-template-columns: repeat(2, minmax(0, 1fr));}
         }
         @media (max-width: 640px) {
+            .sidebar-nav {grid-template-columns: 1fr;}
+            .card {padding: 16px;}
             .week-calendar-grid {grid-template-columns: 1fr;}
             .calendar-header {flex-direction: column; align-items: flex-start;}
         }

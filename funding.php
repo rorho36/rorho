@@ -310,6 +310,8 @@ if (!empty($calendar_dates)) {
         .container {max-width: 1200px; margin: 0 auto; background: #fff; border-radius: 24px; padding: 24px; box-shadow: 0 18px 40px rgba(15,23,42,0.10);}
         h1 {margin-bottom: 16px;}
         table {width: 100%; border-collapse: collapse; margin-bottom: 20px;}
+        .table-scroll {width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch;}
+        .funding-table {min-width: 680px;}
         th, td {padding: 12px; text-align: left; border-bottom: 1px solid #e5e7eb;}
         th {background: #f9fafb; font-weight: bold;}
         .form-grid {display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 18px;}
@@ -324,7 +326,7 @@ if (!empty($calendar_dates)) {
         .status-ongoing {background: #d1fae5; color: #065f46;}
         .status-gone {background: #fee2e2; color: #991b1b;}
         .status-breakeven {background: #ffedd5; color: #92400e;}
-        .tabs {display: flex; gap: 10px; margin-bottom: 20px;}
+        .tabs {display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;}
         .tab-button {margin-top: 0; background: #dbe7ff; color: #17337a; border-radius: 12px; padding: 10px 14px; font-weight: 700;}
         .tab-button:hover {background: #c4d7ff;}
         .tab-button.active {background: #1d4ed8; color: #fff;}
@@ -332,7 +334,7 @@ if (!empty($calendar_dates)) {
         .tab-content.active {display: block;}
         .section-card {background: #f8fbff; border: 1px solid #dbe7ff; border-radius: 20px; padding: 20px;}
         .monthly-pnl-title {margin: 0 0 16px; color: #102a66;}
-        .monthly-pnl-table {width: 100%; border-collapse: separate; border-spacing: 8px; table-layout: fixed;}
+        .monthly-pnl-table {width: 100%; border-collapse: separate; border-spacing: 8px; table-layout: fixed; min-width: 860px;}
         .monthly-pnl-table th {background: #e8f0ff; color: #17337a; border: none; border-radius: 14px; text-align: center;}
         .monthly-pnl-table td {border: 2px solid #d1d5db; border-radius: 16px; padding: 16px 10px; text-align: center; font-weight: 800; font-size: 1rem; background: #fff;}
         .monthly-pnl-table td.month-profit {background: #dcfce7; border-color: #86efac; color: #14532d;}
@@ -377,7 +379,7 @@ if (!empty($calendar_dates)) {
         .winrate-footer {margin-top: 16px; font-weight: 800; color: #102a66; text-align: center;}
         .calendar-wrapper {margin-top: 32px;}
         .calendar-header {display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;}
-        .calendar-grid {width: 100%; border-collapse: separate; border-spacing: 8px;}
+        .calendar-grid {width: 100%; border-collapse: separate; border-spacing: 8px; min-width: 760px;}
         .calendar-grid th, .calendar-grid td {width: 14.285%; border: 2px solid #d1d5db; vertical-align: top; padding: 10px; height: 120px; border-radius: 16px; transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;}
         .calendar-grid td.day-outside {background: #f9fafb; color: #9ca3af;}
         .calendar-grid td.day-inside {background: #fff; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);}
@@ -393,10 +395,16 @@ if (!empty($calendar_dates)) {
         @media (max-width: 900px) {
             .app-shell {flex-direction: column;}
             .sidebar {width: 100%; box-shadow: none;}
+            .sidebar-nav {display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));}
             .main-content {padding: 18px;}
             .equity-header {flex-direction: column;}
             .equity-summary {grid-template-columns: 1fr;}
             .performance-grid, .winrate-layout {grid-template-columns: 1fr;}
+        }
+        @media (max-width: 640px) {
+            .container {padding: 16px; border-radius: 16px;}
+            .tab-button {width: 100%;}
+            .sidebar-nav {grid-template-columns: 1fr;}
         }
     </style>
 </head>
@@ -425,7 +433,8 @@ if (!empty($calendar_dates)) {
                     <button type="button" class="tab-button <?php echo $active_tab === 'performance-metrics-tab' ? 'active' : ''; ?>" data-tab="performance-metrics-tab">Performance Metrics</button>
                 </div>
                 <div id="funding-tab" class="tab-content <?php echo $active_tab === 'funding-tab' ? 'active' : ''; ?>">
-        <table>
+        <div class="table-scroll">
+        <table class="funding-table">
             <thead>
                 <tr>
                     <th>Date</th>
@@ -453,6 +462,7 @@ if (!empty($calendar_dates)) {
                 <?php endforeach; ?>
             </tbody>
         </table>
+        </div>
 
         <form method="post">
             <h2>Add New Entry</h2>
@@ -494,6 +504,7 @@ if (!empty($calendar_dates)) {
             $weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
             ?>
 
+            <div class="table-scroll">
             <table class="calendar-grid">
                 <thead>
                     <tr>
@@ -545,6 +556,7 @@ if (!empty($calendar_dates)) {
                     <?php endwhile; ?>
                 </tbody>
             </table>
+            </div>
 
             <div id="calendar-modal" class="modal">
                 <div class="modal-content">
@@ -581,6 +593,7 @@ if (!empty($calendar_dates)) {
     <div id="monthly-pnl-tab" class="tab-content <?php echo $active_tab === 'monthly-pnl-tab' ? 'active' : ''; ?>">
         <div class="section-card">
             <h2 class="monthly-pnl-title">Monthly PnL</h2>
+            <div class="table-scroll">
             <table class="monthly-pnl-table">
                 <thead>
                     <tr>
@@ -611,6 +624,7 @@ if (!empty($calendar_dates)) {
                     </tr>
                 </tbody>
             </table>
+            </div>
         </div>
     </div>
 

@@ -191,11 +191,17 @@ $active_nav = 'dashboard';
         @media (max-width: 900px) {
             .app-shell {flex-direction: column;}
             .sidebar {width: 100%; box-shadow: none;}
+            .sidebar-nav {display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));}
             .main-content {padding: 18px;}
             .hero-top, .stats-grid, .form-grid, .editor-header {grid-template-columns: 1fr;}
             .hero-top, .editor-header {display: grid;}
             .stats-grid, .form-grid {grid-template-columns: 1fr;}
             h1 {font-size: 2rem;}
+        }
+        @media (max-width: 640px) {
+            .sidebar-nav {grid-template-columns: 1fr;}
+            .dashboard-hero, .editor-panel {padding: 18px;}
+            .hero-balance {padding: 16px;}
         }
     </style>
 </head>
