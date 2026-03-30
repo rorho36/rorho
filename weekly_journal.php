@@ -1,15 +1,8 @@
 <?php
-$journal_path = __DIR__ . '/weekly_journal_data.json';
-$default_journal = [];
+require_once __DIR__ . '/db.php';
 
-if (!file_exists($journal_path)) {
-    file_put_contents($journal_path, json_encode($default_journal, JSON_PRETTY_PRINT));
-}
-
-$journal_entries = json_decode(file_get_contents($journal_path), true);
-if (!is_array($journal_entries)) {
-    $journal_entries = $default_journal;
-}
+$pdo = app_require_db();
+$journal_entries = [];
 
 function normalize_week_start($value) {
     $raw = trim((string)$value);
@@ -42,22 +35,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (isset($_POST['delete_entry'])) {
         $delete_week = normalize_week_start($_POST['week_start'] ?? '');
-        if (isset($journal_entries[$delete_week])) {
-            unset($journal_entries[$delete_week]);
-            file_put_contents($journal_path, json_encode($journal_entries, JSON_PRETTY_PRINT));
-        }
+        $delete_stmt = $pdo->prepare('DELETE FROM weekly_journal_entries WHERE week_start = :week_start');
+        $delete_stmt->execute(['week_start' => $delete_week]);
         header('Location: ' . $_SERVER['PHP_SELF'] . '?year=' . urlencode((string)$redirect_year));
         exit;
     }
 
     $week_start = normalize_week_start($_POST['week_start'] ?? '');
-    $journal_entries[$week_start] = [
+    $upsert_stmt = $pdo->prepare('
+        INSERT INTO weekly_journal_entries (week_start, weekly_lessons, overall_trading, updated_at)
+        VALUES (:week_start, :weekly_lessons, :overall_trading, NOW())
+        ON CONFLICT (week_start) DO UPDATE SET
+            weekly_lessons = EXCLUDED.weekly_lessons,
+            overall_trading = EXCLUDED.overall_trading,
+            updated_at = NOW()
+    ');
+    $upsert_stmt->execute([
+        'week_start' => $week_start,
         'weekly_lessons' => trim($_POST['weekly_lessons'] ?? ''),
         'overall_trading' => trim($_POST['overall_trading'] ?? ''),
-        'updated_at' => date('c'),
-    ];
+    ]);
 
-    file_put_contents($journal_path, json_encode($journal_entries, JSON_PRETTY_PRINT));
     header('Location: ' . $_SERVER['PHP_SELF'] . '?year=' . urlencode((string)$redirect_year) . '&week=' . urlencode($week_start));
     exit;
 }
@@ -68,12 +66,24 @@ if ($view_year < 2000 || $view_year > 2100) {
 }
 
 $selected_week = normalize_week_start($_GET['week'] ?? date('Y-m-d'));
-$selected_entry = $journal_entries[$selected_week] ?? ['weekly_lessons' => '', 'overall_trading' => ''];
-
 $prev_year = $view_year - 1;
 $next_year = $view_year + 1;
 
-krsort($journal_entries);
+$journal_rows = $pdo->query('
+    SELECT week_start::text AS week_start, weekly_lessons, overall_trading, updated_at
+    FROM weekly_journal_entries
+    ORDER BY week_start DESC
+')->fetchAll();
+
+foreach ($journal_rows as $row) {
+    $journal_entries[(string)$row['week_start']] = [
+        'weekly_lessons' => (string)($row['weekly_lessons'] ?? ''),
+        'overall_trading' => (string)($row['overall_trading'] ?? ''),
+        'updated_at' => (string)($row['updated_at'] ?? ''),
+    ];
+}
+
+$selected_entry = $journal_entries[$selected_week] ?? ['weekly_lessons' => '', 'overall_trading' => ''];
 ?>
 <!DOCTYPE html>
 <html lang="en">

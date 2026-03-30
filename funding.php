@@ -1,25 +1,9 @@
 <?php
-$funding_path = __DIR__ . '/funding_data.json';
-$default_funding = [];
+require_once __DIR__ . '/db.php';
 
-if (!file_exists($funding_path)) {
-    file_put_contents($funding_path, json_encode($default_funding, JSON_PRETTY_PRINT));
-}
-
-$funding = json_decode(file_get_contents($funding_path), true);
-if (!$funding) {
-    $funding = $default_funding;
-}
-
-$calendar_path = __DIR__ . '/calendar_data.json';
-$default_calendar = [];
-if (!file_exists($calendar_path)) {
-    file_put_contents($calendar_path, json_encode($default_calendar, JSON_PRETTY_PRINT));
-}
-$calendar = json_decode(file_get_contents($calendar_path), true);
-if (!$calendar) {
-    $calendar = $default_calendar;
-}
+$pdo = app_require_db();
+$funding = [];
+$calendar = [];
 
 $view_month = $_GET['month'] ?? date('Y-m');
 $selected_date = $_GET['calendar_date'] ?? date('Y-m-d');
@@ -37,8 +21,41 @@ function float_or_null($value) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['calendar_entry'])) {
         $cdate = $_POST['calendar_date'] ?? date('Y-m-d');
-        $calendar[$cdate] = [
-            'type' => $_POST['calendar_type'] ?? 'profit',
+        $calendar_type = $_POST['calendar_type'] ?? 'profit';
+        $calendar_theory = in_array($_POST['theory'] ?? '', ['logical', 'model'], true) ? $_POST['theory'] : 'logical';
+        $calendar_ovr = in_array($_POST['ovr'] ?? '', ['good', 'bad'], true) ? $_POST['ovr'] : 'good';
+        $calendar_session = implode(',', array_values(array_filter(array_map('trim', explode(',', $_POST['session'] ?? '')))));
+        $calendar_outsession = implode(',', array_values(array_filter(array_map('trim', explode(',', $_POST['outsession'] ?? '')))));
+
+        $upsert_calendar = $pdo->prepare('
+            INSERT INTO calendar_entries (
+                date, type, rr, percent_made, be, loss, win, reentry_win, reentry_loss, reentry_be,
+                session, outsession, journal, theory, ovr, links, updated_at
+            ) VALUES (
+                :date, :type, :rr, :percent_made, :be, :loss, :win, :reentry_win, :reentry_loss, :reentry_be,
+                :session, :outsession, :journal, :theory, :ovr, :links, NOW()
+            )
+            ON CONFLICT (date) DO UPDATE SET
+                type = EXCLUDED.type,
+                rr = EXCLUDED.rr,
+                percent_made = EXCLUDED.percent_made,
+                be = EXCLUDED.be,
+                loss = EXCLUDED.loss,
+                win = EXCLUDED.win,
+                reentry_win = EXCLUDED.reentry_win,
+                reentry_loss = EXCLUDED.reentry_loss,
+                reentry_be = EXCLUDED.reentry_be,
+                session = EXCLUDED.session,
+                outsession = EXCLUDED.outsession,
+                journal = EXCLUDED.journal,
+                theory = EXCLUDED.theory,
+                ovr = EXCLUDED.ovr,
+                links = EXCLUDED.links,
+                updated_at = NOW()
+        ');
+        $upsert_calendar->execute([
+            'date' => $cdate,
+            'type' => $calendar_type,
             'rr' => float_or_null($_POST['rr'] ?? ''),
             'percent_made' => float_or_null($_POST['percent_made'] ?? ''),
             'be' => float_or_null($_POST['be'] ?? ''),
@@ -47,29 +64,77 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'reentry_win' => float_or_null($_POST['reentry_win'] ?? ''),
             'reentry_loss' => float_or_null($_POST['reentry_loss'] ?? ''),
             'reentry_be' => float_or_null($_POST['reentry_be'] ?? ''),
-            'session' => array_values(array_filter(array_map('trim', explode(',', $_POST['session'] ?? '')))),
-            'outsession' => array_values(array_filter(array_map('trim', explode(',', $_POST['outsession'] ?? '')))),
+            'session' => $calendar_session,
+            'outsession' => $calendar_outsession,
             'journal' => trim($_POST['journal'] ?? ''),
-            'theory' => in_array($_POST['theory'] ?? '', ['logical', 'model']) ? $_POST['theory'] : 'logical',
-            'ovr' => in_array($_POST['ovr'] ?? '', ['good', 'bad']) ? $_POST['ovr'] : 'good',
+            'theory' => $calendar_theory,
+            'ovr' => $calendar_ovr,
             'links' => trim($_POST['links'] ?? ''),
-        ];
-        file_put_contents($calendar_path, json_encode($calendar, JSON_PRETTY_PRINT));
+        ]);
+
         header('Location: ' . $_SERVER['PHP_SELF'] . '?month=' . urlencode($_POST['calendar_month'] ?? date('Y-m')));
         exit;
     }
 
-    $new_entry = [
+    $insert_funding = $pdo->prepare('
+        INSERT INTO funding_entries (date, amount, firm, action, status)
+        VALUES (:date, :amount, :firm, :action, :status)
+    ');
+    $insert_funding->execute([
         'date' => $_POST['date'] ?? date('Y-m-d'),
         'amount' => (float)($_POST['amount'] ?? 0.0),
-        'firm' => $_POST['firm'] ?? '',
-        'action' => $_POST['action'] ?? '',
-        'status' => $_POST['status'] ?? 'ongoing',
-    ];
-    $funding[] = $new_entry;
-    file_put_contents($funding_path, json_encode($funding, JSON_PRETTY_PRINT));
+        'firm' => trim($_POST['firm'] ?? ''),
+        'action' => trim($_POST['action'] ?? ''),
+        'status' => ($_POST['status'] ?? 'ongoing') === 'gone' ? 'gone' : 'ongoing',
+    ]);
+
     header('Location: ' . $_SERVER['PHP_SELF']);
     exit;
+}
+
+$funding_rows = $pdo->query('
+    SELECT date::text AS date, amount::float8 AS amount, firm, action, status
+    FROM funding_entries
+    ORDER BY date DESC, id DESC
+')->fetchAll();
+
+foreach ($funding_rows as $row) {
+    $funding[] = [
+        'date' => $row['date'],
+        'amount' => (float)$row['amount'],
+        'firm' => (string)$row['firm'],
+        'action' => (string)$row['action'],
+        'status' => (string)$row['status'],
+    ];
+}
+
+$calendar_rows = $pdo->query('
+    SELECT
+        date::text AS date_key, type, rr::float8 AS rr, percent_made::float8 AS percent_made,
+        be::float8 AS be, loss::float8 AS loss, win::float8 AS win,
+        reentry_win::float8 AS reentry_win, reentry_loss::float8 AS reentry_loss, reentry_be::float8 AS reentry_be,
+        session, outsession, journal, theory, ovr, links
+    FROM calendar_entries
+')->fetchAll();
+
+foreach ($calendar_rows as $row) {
+    $calendar[(string)$row['date_key']] = [
+        'type' => (string)$row['type'],
+        'rr' => $row['rr'] !== null ? (float)$row['rr'] : null,
+        'percent_made' => $row['percent_made'] !== null ? (float)$row['percent_made'] : null,
+        'be' => $row['be'] !== null ? (float)$row['be'] : null,
+        'loss' => $row['loss'] !== null ? (float)$row['loss'] : null,
+        'win' => $row['win'] !== null ? (float)$row['win'] : null,
+        'reentry_win' => $row['reentry_win'] !== null ? (float)$row['reentry_win'] : null,
+        'reentry_loss' => $row['reentry_loss'] !== null ? (float)$row['reentry_loss'] : null,
+        'reentry_be' => $row['reentry_be'] !== null ? (float)$row['reentry_be'] : null,
+        'session' => array_values(array_filter(array_map('trim', explode(',', (string)($row['session'] ?? ''))))),
+        'outsession' => array_values(array_filter(array_map('trim', explode(',', (string)($row['outsession'] ?? ''))))),
+        'journal' => (string)($row['journal'] ?? ''),
+        'theory' => (string)($row['theory'] ?? 'logical'),
+        'ovr' => (string)($row['ovr'] ?? 'good'),
+        'links' => (string)($row['links'] ?? ''),
+    ];
 }
 
 function format_currency($num) {

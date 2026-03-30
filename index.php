@@ -1,5 +1,7 @@
 <?php
-$path = __DIR__ . '/dashboard_data.json';
+require_once __DIR__ . '/db.php';
+
+$pdo = app_require_db();
 $default_state = [
     'funding_goal' => 4000000,
     'current_balance' => 2350000,
@@ -8,13 +10,23 @@ $default_state = [
     'outstanding_challenges' => 5,
 ];
 
-if (!file_exists($path)) {
-    file_put_contents($path, json_encode($default_state, JSON_PRETTY_PRINT));
-}
-
-$state = json_decode(file_get_contents($path), true);
+$state_stmt = $pdo->query('SELECT funding_goal, current_balance, total_payouts, total_expenses, outstanding_challenges FROM dashboard_state WHERE id = 1 LIMIT 1');
+$state = $state_stmt->fetch();
 if (!$state) {
+    $insert_default = $pdo->prepare('
+        INSERT INTO dashboard_state (id, funding_goal, current_balance, total_payouts, total_expenses, outstanding_challenges)
+        VALUES (1, :funding_goal, :current_balance, :total_payouts, :total_expenses, :outstanding_challenges)
+    ');
+    $insert_default->execute($default_state);
     $state = $default_state;
+} else {
+    $state = [
+        'funding_goal' => (int)$state['funding_goal'],
+        'current_balance' => (int)$state['current_balance'],
+        'total_payouts' => (int)$state['total_payouts'],
+        'total_expenses' => (int)$state['total_expenses'],
+        'outstanding_challenges' => (int)$state['outstanding_challenges'],
+    ];
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -24,7 +36,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $state['total_expenses'] = max(0, (int)($_POST['total_expenses'] ?? $state['total_expenses']));
     $state['outstanding_challenges'] = max(0, (int)($_POST['outstanding_challenges'] ?? $state['outstanding_challenges']));
 
-    file_put_contents($path, json_encode($state, JSON_PRETTY_PRINT));
+    $upsert_state = $pdo->prepare('
+        INSERT INTO dashboard_state (id, funding_goal, current_balance, total_payouts, total_expenses, outstanding_challenges)
+        VALUES (1, :funding_goal, :current_balance, :total_payouts, :total_expenses, :outstanding_challenges)
+        ON CONFLICT (id) DO UPDATE SET
+            funding_goal = EXCLUDED.funding_goal,
+            current_balance = EXCLUDED.current_balance,
+            total_payouts = EXCLUDED.total_payouts,
+            total_expenses = EXCLUDED.total_expenses,
+            outstanding_challenges = EXCLUDED.outstanding_challenges
+    ');
+    $upsert_state->execute($state);
+
     header('Location: ' . $_SERVER['PHP_SELF']);
     exit;
 }
